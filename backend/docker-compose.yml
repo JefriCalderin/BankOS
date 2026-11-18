@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bankos-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-bankos}
+      POSTGRES_USER: ${DB_USER:-bankos}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bankos_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - bankos_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-bankos} -d ${DB_NAME:-bankos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: bankos-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - bankos_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  webhook-sink:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bankos-webhook-sink
+    command: ["/app/bin/webhook_sink"]
+    environment:
+      WEBHOOK_SINK_PORT: "8085"
+    ports:
+      - "8085:8085"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bankos-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-bankos}
+      DB_USER: ${DB_USER:-bankos}
+      DB_PASSWORD: ${DB_PASSWORD:-bankos_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:-bankos-super-secret-jwt-key-change-in-production}
+      JWT_EXPIRY_HOURS: ${JWT_EXPIRY_HOURS:-24}
+      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:-bankos-webhook-hmac-secret}
+      DEFAULT_DEMO_WEBHOOK_URL: http://webhook-sink:8085/webhook
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-20}
+      AUTH_RATE_LIMIT_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:-60}
+      TX_RATE_LIMIT_MAX: ${TX_RATE_LIMIT_MAX:-60}
+      TX_RATE_LIMIT_WINDOW_SECONDS: ${TX_RATE_LIMIT_WINDOW_SECONDS:-60}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  bankos_pg_data:
+  bankos_redis_data:
