@@ -1,0 +1,513 @@
+openapi: 3.1.0
+info:
+  title: BankOS — Multitenant Banking-as-a-Service API
+  version: 1.0.0
+  description: |
+    Plataforma bancaria multitenant en la nube (Backend Dart Shelf + PostgreSQL + Redis).
+    Incluye aislamiento estricto por tenant, autenticación JWT con claims (`tenant_id`, `user_id`, `role`),
+    operaciones multimoneda con tasas estáticas y comisiones parametrizadas, idempotencia obligatoria (`Idempotency-Key`),
+    trazabilidad (`X-Correlation-ID`), rate limiting dual (IP + usuario), auditoría inmutable y webhooks asíncronos.
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local / Docker Compose server
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: Identificador de trazabilidad propagado en logs, webhooks y respuesta HTTP.
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID obligatorio generado en el cliente. Expira a las 24h y se asocia a (tenant_id, user_id).
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    StandardResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        code:
+          type: string
+        message:
+          type: string
+        data:
+          type: object
+        meta:
+          type: object
+          properties:
+            correlation_id:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            pagination:
+              type: object
+              properties:
+                page:
+                  type: integer
+                limit:
+                  type: integer
+                total:
+                  type: integer
+                total_pages:
+                  type: integer
+                has_next:
+                  type: boolean
+                has_previous:
+                  type: boolean
+
+    TenantConfig:
+      type: object
+      properties:
+        max_transaction_limit:
+          type: number
+          example: 50000000
+        transfer_fee_type:
+          type: string
+          enum: [fixed, percentage]
+        transfer_fee_value:
+          type: number
+          example: 1.5
+        base_currency:
+          type: string
+          example: COP
+        exchange_rates:
+          type: object
+          additionalProperties:
+            type: number
+          example:
+            USD_COP: 4000.0
+            COP_USD: 0.00025
+        webhook_url:
+          type: string
+          nullable: true
+          example: http://webhook-sink:8085/webhook
+
+paths:
+  /health:
+    get:
+      summary: Verificar salud de la API y dependencias (PostgreSQL & Redis)
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Servicio operativo
+
+  /tenants:
+    post:
+      summary: Registrar un nuevo tenant con configuración inicial y administrador
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug, admin]
+              properties:
+                name:
+                  type: string
+                  example: Fintech Caribe
+                slug:
+                  type: string
+                  example: fintech-caribe
+                config:
+                  $ref: '#/components/schemas/TenantConfig'
+                admin:
+                  type: object
+                  required: [email, full_name, password]
+                  properties:
+                    email:
+                      type: string
+                    full_name:
+                      type: string
+                    password:
+                      type: string
+      responses:
+        '201':
+          description: Tenant creado exitosamente
+
+  /tenants/current:
+    get:
+      summary: Obtener configuración del tenant autenticado
+      responses:
+        '200':
+          description: Configuración del tenant
+
+  /tenants/current/config:
+    patch:
+      summary: Actualizar parámetros del tenant (Solo administrador, genera auditoría inmutable)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantConfig'
+      responses:
+        '200':
+          description: Configuración actualizada
+        '403':
+          description: Requiere rol administrador
+
+  /auth/login:
+    post:
+      summary: Iniciar sesión dentro de un tenant específico (Rate Limited)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_slug, email, password]
+              properties:
+                tenant_slug:
+                  type: string
+                  example: banco-andes
+                email:
+                  type: string
+                  example: ana@andes.bank
+                password:
+                  type: string
+                  example: Cliente123!
+      responses:
+        '200':
+          description: JWT con claims tenant_id, user_id y role
+        '401':
+          description: Credenciales inválidas
+        '429':
+          description: Rate limit excedido
+
+  /auth/register:
+    post:
+      summary: Crear un usuario dentro del tenant actual (Solo administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, full_name, password]
+              properties:
+                email:
+                  type: string
+                full_name:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [cliente, administrador]
+      responses:
+        '201':
+          description: Usuario creado
+
+  /auth/me:
+    get:
+      summary: Obtener perfil del usuario y configuración de su tenant
+      responses:
+        '200':
+          description: Perfil activo
+
+  /users:
+    get:
+      summary: Listar usuarios del tenant (Solo administrador)
+      responses:
+        '200':
+          description: Lista de usuarios
+
+  /accounts:
+    get:
+      summary: Listar cuentas bancarias (cliente ve solo las propias; admin ve todas del tenant)
+      responses:
+        '200':
+          description: Cuentas bancarias
+    post:
+      summary: Crear cuenta bancaria vinculada a un cliente del tenant (Solo administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [owner_user_id, currency]
+              properties:
+                owner_user_id:
+                  type: string
+                  format: uuid
+                currency:
+                  type: string
+                  example: USD
+                initial_balance:
+                  type: number
+                  example: 1000
+      responses:
+        '201':
+          description: Cuenta creada
+
+  /accounts/lookup/{accountNumber}:
+    get:
+      summary: Buscar cuenta destino por número único dentro del mismo tenant
+      parameters:
+        - name: accountNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Información pública de la cuenta destino dentro del tenant
+        '404':
+          description: Cuenta no encontrada en este tenant
+
+  /accounts/{accountNumber}:
+    get:
+      summary: Obtener detalle completo de una cuenta bancaria
+      parameters:
+        - name: accountNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle de cuenta
+
+  /accounts/{accountId}:
+    delete:
+      summary: Borrado lógico (Soft Delete) de una cuenta a inactiva o bloqueada (Solo administrador)
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [inactiva, bloqueada]
+            default: inactiva
+      responses:
+        '200':
+          description: Cuenta desactivada lógicamente
+
+  /accounts/{accountId}/status:
+    patch:
+      summary: Cambiar estado de cuenta (activa, inactiva, bloqueada) (Solo administrador)
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [activa, inactiva, bloqueada]
+      responses:
+        '200':
+          description: Estado actualizado
+
+  /transactions/quote:
+    post:
+      summary: Calcular desglose pre-transacción (comisión, tasa de cambio, total a debitar y monto final)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_account_number, destination_account_number, amount]
+              properties:
+                source_account_number:
+                  type: string
+                  example: AND-USD-1001
+                destination_account_number:
+                  type: string
+                  example: AND-COP-2001
+                amount:
+                  type: number
+                  example: 100
+      responses:
+        '200':
+          description: Cotización exacta
+
+  /transactions/deposit:
+    post:
+      summary: Abonar fondos a una cuenta activa (Idempotente + Rate Limited)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account_number, amount]
+              properties:
+                account_number:
+                  type: string
+                amount:
+                  type: number
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Depósito completado
+        '409':
+          description: Operación concurrente en progreso con la misma Idempotency-Key
+
+  /transactions/withdraw:
+    post:
+      summary: Debitar fondos de una cuenta activa (Idempotente + Rate Limited)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account_number, amount]
+              properties:
+                account_number:
+                  type: string
+                amount:
+                  type: number
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Retiro completado
+        '409':
+          description: Operación concurrente en progreso
+
+  /transactions/transfer:
+    post:
+      summary: Transferencia interna con soporte multimoneda, comisión automática y webhook (Idempotente)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_account_number, destination_account_number, amount]
+              properties:
+                source_account_number:
+                  type: string
+                  example: AND-USD-1001
+                destination_account_number:
+                  type: string
+                  example: AND-COP-2001
+                amount:
+                  type: number
+                  example: 100
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Transferencia completada (o replayed exactamente si Idempotency-Key ya existía)
+        '409':
+          description: Operación concurrente en progreso
+        '422':
+          description: Fondos insuficientes, límite excedido o cuenta inactiva
+
+  /transactions:
+    get:
+      summary: Historial paginado de transacciones con filtros avanzados
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [deposit, withdrawal, transfer]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [SUCCESS, FAILED]
+        - name: account_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Página de transacciones con metadatos de paginación
+
+  /audit-logs:
+    get:
+      summary: Consultar registro de auditoría inmutable (Solo administrador)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Eventos de auditoría paginados
+        '403':
+          description: Requiere rol administrador

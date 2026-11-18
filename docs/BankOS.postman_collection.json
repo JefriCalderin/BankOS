@@ -1,0 +1,303 @@
+{
+  "info": {
+    "name": "BankOS API v1 — Multitenant Banking Collection",
+    "description": "Colección oficial de BankOS v1 para Postman / Thunder Client. Incluye flujos completos para demostrar aislamiento multitenant, idempotencia sin doble cobro, transferencia multimoneda con comisión y webhooks.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080/api/v1" },
+    { "key": "webhookSinkUrl", "value": "http://localhost:8085" },
+    { "key": "andesClientToken", "value": "" },
+    { "key": "andesAdminToken", "value": "" },
+    { "key": "solClientToken", "value": "" },
+    { "key": "demoIdempotencyKey", "value": "11111111-2222-4333-8444-555555555555" }
+  ],
+  "item": [
+    {
+      "name": "0. Health & Webhooks",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "url": "{{baseUrl}}/health"
+          }
+        },
+        {
+          "name": "Inspect Delivered Webhooks (Webhook Sink)",
+          "request": {
+            "method": "GET",
+            "url": "{{webhookSinkUrl}}/events"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Demo Escenario 1 — Aislamiento Multitenant",
+      "item": [
+        {
+          "name": "Login Ana (Tenant: banco-andes)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.access_token) {",
+                  "  pm.collectionVariables.set('andesClientToken', res.data.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_slug\": \"banco-andes\",\n  \"email\": \"ana@andes.bank\",\n  \"password\": \"Cliente123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Login María (Tenant: cooperativa-sol)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.access_token) {",
+                  "  pm.collectionVariables.set('solClientToken', res.data.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_slug\": \"cooperativa-sol\",\n  \"email\": \"maria@sol.coop\",\n  \"password\": \"Cliente123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Listar Cuentas de Ana (banco-andes)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesClientToken}}" },
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "url": "{{baseUrl}}/accounts"
+          }
+        },
+        {
+          "name": "Listar Cuentas de María (cooperativa-sol)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{solClientToken}}" },
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "url": "{{baseUrl}}/accounts"
+          }
+        },
+        {
+          "name": "Prueba Aislamiento: Ana intenta buscar cuenta de cooperativa-sol (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesClientToken}}" },
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "url": "{{baseUrl}}/accounts/lookup/SOL-USD-1001"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Demo Escenario 2 & 3 — Multimoneda + Comisión + Idempotencia",
+      "item": [
+        {
+          "name": "Cotizar Transferencia USD -> COP (Pre-Transacción)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesClientToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_account_number\": \"AND-USD-1001\",\n  \"destination_account_number\": \"AND-COP-2001\",\n  \"amount\": 100\n}"
+            },
+            "url": "{{baseUrl}}/transactions/quote"
+          }
+        },
+        {
+          "name": "Ejecutar Transferencia USD -> COP (Intento #1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesClientToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{demoIdempotencyKey}}" },
+              { "key": "X-Correlation-ID", "value": "demo-corr-transfer-001" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_account_number\": \"AND-USD-1001\",\n  \"destination_account_number\": \"AND-COP-2001\",\n  \"amount\": 100,\n  \"description\": \"Transferencia multimoneda USD a COP\"\n}"
+            },
+            "url": "{{baseUrl}}/transactions/transfer"
+          }
+        },
+        {
+          "name": "Reintentar Misma Transferencia con MISMA Idempotency-Key (Replay sin doble cobro)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesClientToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{demoIdempotencyKey}}" },
+              { "key": "X-Correlation-ID", "value": "demo-corr-transfer-001" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_account_number\": \"AND-USD-1001\",\n  \"destination_account_number\": \"AND-COP-2001\",\n  \"amount\": 100,\n  \"description\": \"Transferencia multimoneda USD a COP\"\n}"
+            },
+            "url": "{{baseUrl}}/transactions/transfer"
+          }
+        },
+        {
+          "name": "Depósito Idempotente",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesClientToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" },
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_number\": \"AND-USD-1001\",\n  \"amount\": 250,\n  \"description\": \"Abono nómina\"\n}"
+            },
+            "url": "{{baseUrl}}/transactions/deposit"
+          }
+        },
+        {
+          "name": "Retiro Idempotente",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesClientToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" },
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_number\": \"AND-USD-1001\",\n  \"amount\": 50,\n  \"description\": \"Retiro cajero\"\n}"
+            },
+            "url": "{{baseUrl}}/transactions/withdraw"
+          }
+        },
+        {
+          "name": "Historial Paginado con Filtro por Tipo",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesClientToken}}" },
+              { "key": "X-Correlation-ID", "value": "{{$guid}}" }
+            ],
+            "url": "{{baseUrl}}/transactions?page=1&limit=10&type=transfer"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Administración de Tenant, Cuentas y Auditoría",
+      "item": [
+        {
+          "name": "Login Admin (banco-andes)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.access_token) {",
+                  "  pm.collectionVariables.set('andesAdminToken', res.data.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_slug\": \"banco-andes\",\n  \"email\": \"admin@andes.bank\",\n  \"password\": \"Admin123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Registrar Nuevo Tenant",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fintech Caribe\",\n  \"slug\": \"fintech-caribe\",\n  \"config\": {\n    \"max_transaction_limit\": 20000,\n    \"transfer_fee_type\": \"fixed\",\n    \"transfer_fee_value\": 1.75,\n    \"base_currency\": \"USD\",\n    \"exchange_rates\": {\n      \"USD_COP\": 4050,\n      \"COP_USD\": 0.0002469\n    },\n    \"webhook_url\": \"http://webhook-sink:8085/webhook\"\n  },\n  \"admin\": {\n    \"email\": \"admin@caribe.fin\",\n    \"full_name\": \"Sofía Morales\",\n    \"password\": \"Admin123!\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/tenants"
+          }
+        },
+        {
+          "name": "Actualizar Configuración del Tenant (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesAdminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"max_transaction_limit\": 60000000,\n  \"transfer_fee_type\": \"percentage\",\n  \"transfer_fee_value\": 1.5\n}"
+            },
+            "url": "{{baseUrl}}/tenants/current/config"
+          }
+        },
+        {
+          "name": "Consultar Registro de Auditoría Inmutable (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{andesAdminToken}}" }
+            ],
+            "url": "{{baseUrl}}/audit-logs?page=1&limit=20"
+          }
+        }
+      ]
+    }
+  ]
+}
