@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../../../../data/repositories/auth_repository.dart';
 import '../../../../data/repositories/banking_repository.dart';
 import '../../../../domain/models/bank_models.dart';
+import '../../../core/demo_guide_dialog.dart';
 import '../../../core/theme.dart';
 import '../../admin/view_models/admin_view_model.dart';
 import '../../admin/views/admin_view.dart';
+import '../../admin/views/webhooks_viewer_sheet.dart';
 import '../../auth/view_models/auth_view_model.dart';
 import '../../dashboard/view_models/dashboard_view_model.dart';
 import '../../dashboard/views/dashboard_view.dart';
@@ -193,6 +195,29 @@ class _HomeShellViewState extends State<HomeShellView> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Monitor Webhooks',
+            icon: const Icon(Icons.sensors_rounded),
+            onPressed: () {
+              WebhooksViewerSheet.show(
+                context,
+                bankingRepository: widget.bankingRepository,
+                tenantName: widget.session.tenant.name,
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Guía Demo Hackatón',
+            icon: const Icon(Icons.help_outline_rounded),
+            onPressed: () {
+              DemoGuideDialog.show(
+                context,
+                authViewModel: widget.authViewModel,
+                bankingRepository: widget.bankingRepository,
+                currentTenantSlug: widget.session.tenant.slug,
+              );
+            },
+          ),
+          IconButton(
             tooltip: 'Seguridad 2FA (PIN / Biometría)',
             icon: const Icon(Icons.security_rounded),
             onPressed: _openSecuritySettings,
@@ -216,6 +241,12 @@ class _HomeShellViewState extends State<HomeShellView> {
                 setState(() {
                   _preselectedAccount = account;
                   _selectedIndex = 1;
+                });
+              },
+              onViewAccountTransactions: (account) {
+                _historyVm.setAccountFilter(account.accountNumber);
+                setState(() {
+                  _selectedIndex = 2;
                 });
               },
             ),

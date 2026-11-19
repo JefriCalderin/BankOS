@@ -41,6 +41,7 @@ class BankOsApp {
       bankingService: bankingService,
       idempotencyService: idempotencyService,
       rateLimiter: rateLimiterService,
+      webhookService: webhookService,
     );
 
     handler = const Pipeline()

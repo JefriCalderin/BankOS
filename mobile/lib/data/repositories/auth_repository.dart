@@ -101,6 +101,59 @@ class AuthRepository {
     return session;
   }
 
+  Future<UserSession> registerTenant({
+    required String name,
+    required String slug,
+    required String baseCurrency,
+    required double maxTransactionLimit,
+    required String transferFeeType,
+    required double transferFeeValue,
+    required Map<String, double> exchangeRates,
+    required String adminEmail,
+    required String adminFullName,
+    required String adminPassword,
+    String? webhookUrl,
+  }) async {
+    final response = await _apiClient.post(
+      '/api/v1/tenants',
+      body: {
+        'name': name.trim(),
+        'slug': slug.trim().toLowerCase(),
+        'config': {
+          'max_transaction_limit': maxTransactionLimit,
+          'transfer_fee_type': transferFeeType,
+          'transfer_fee_value': transferFeeValue,
+          'base_currency': baseCurrency.toUpperCase(),
+          'exchange_rates': exchangeRates,
+          if (webhookUrl != null && webhookUrl.trim().isNotEmpty)
+            'webhook_url': webhookUrl.trim(),
+        },
+        'admin': {
+          'email': adminEmail.trim().toLowerCase(),
+          'full_name': adminFullName.trim(),
+          'password': adminPassword,
+        },
+      },
+    );
+
+    final data = (response.body['data'] as Map).cast<String, dynamic>();
+    final token = data['access_token'] as String;
+    final user = UserProfile.fromJson(
+      (data['admin_user'] as Map).cast<String, dynamic>(),
+    );
+    final tenant = TenantInfo.fromJson(
+      (data['tenant'] as Map).cast<String, dynamic>(),
+    );
+    final session = UserSession(accessToken: token, user: user, tenant: tenant);
+    _currentSession = session;
+    await _persistSession(session);
+    final existingPin = await _storage.read(_pinKey);
+    if (existingPin == null || existingPin.isEmpty) {
+      await _storage.write(_pinKey, '1234');
+    }
+    return session;
+  }
+
   Future<void> updateCachedTenant(TenantInfo tenant) async {
     if (_currentSession == null) return;
     _currentSession = _currentSession!.copyWith(tenant: tenant);

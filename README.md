@@ -56,13 +56,17 @@ BankOS/
 - **Historial Paginado**: `GET /api/v1/transactions?page=1&limit=20&type=transfer&from_date=...&to_date=...`.
 
 ### 2. Aplicación Móvil Flutter
-- **Ingreso por Tenant**: Requiere `tenant_slug` + credenciales (incluye accesos rápidos para probar ambos tenants en vivo) y persistencia segura de sesión con `flutter_secure_storage`.
+- **Ingreso por Tenant y Auto-Registro**: Requiere `tenant_slug` + credenciales (incluye accesos rápidos para probar ambos tenants en vivo), auto-onboarding de nuevas entidades bancarias (*"Registrar Nueva Institución"*) y persistencia segura de sesión con `flutter_secure_storage`.
 - **Doble Factor Local (2FA)**: Modal de autorización con **PIN de 4 dígitos** (por defecto `1234`, configurable en la app) o **Biometría simulada** antes de confirmar retiros o transferencias.
-- **Dashboard en Tiempo Real**: Saldos, divisas, estados de cuenta, reglas del tenant y accesos rápidos.
+- **Dashboard en Tiempo Real**: Saldos, divisas, estados de cuenta, reglas del tenant, accesos rápidos y filtro directo a movimientos por cuenta.
 - **Flujos de Operación + Resumen Pre-Transacción**: Búsqueda de cuenta destino por identificador único y pantalla de resumen con desglose exacto (monto base, comisión, tasa de cambio, total a debitar, monto final en destino y monedas implicadas).
 - **Reintento Transparente en Red**: `OperationDraft` fija el `Idempotency-Key` y `X-Correlation-ID` antes de enviar. Incluye reintento automático ante fallos transitorios, botón visible de reintento reutilizando exactamente las mismas llaves y un interruptor **"Simular pérdida de red (Demo Idempotencia)"** para demostrar el escenario en vivo.
-- **Historial Visual con Alertas de Costo**: Filtros interactivos (`Todas`, `Depósitos`, `Retiros`, `Transferencias`), paginación y etiquetas/bordes de alto contraste para transacciones con **comisión** (ámbar) o **conversión de divisas FX** (violeta).
-- **Panel de Administración**: Disponible al iniciar sesión con rol `administrador` para modificar parámetros del tenant, crear cuentas, aplicar borrado lógico y auditar logs inmutables.
+- **Historial Visual y Auditoría Detallada**:
+  - Filtros interactivos por tipo (`Todas`, `Depósitos`, `Retiros`, `Transferencias`), por cuenta bancaria y por **rango de fechas**.
+  - Etiquetas y bordes de alto contraste para transacciones con **comisión** (ámbar) o **conversión de divisas FX** (violeta).
+  - Hoja modal de **detalle completo de transacción** con desglose de montos, tasas y copiado rápido de `Idempotency-Key` y `X-Correlation-ID`.
+- **Panel de Administración**: Disponible para rol `administrador` para modificar parámetros del tenant, dar de alta nuevos usuarios/clientes (`POST /api/v1/auth/register`), crear cuentas bancarias, aplicar borrado lógico y auditar logs inmutables.
+- **Asistente de Demostración y Visor de Webhooks**: Acceso directo desde el AppBar a la **Guía interactiva de Demostración del Hackatón** y al **Visor en vivo de Webhooks** con firma HMAC para inspección en tiempo real sin salir de la app.
 
 ---
 

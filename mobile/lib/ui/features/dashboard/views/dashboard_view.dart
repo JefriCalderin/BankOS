@@ -12,12 +12,14 @@ class DashboardView extends StatelessWidget {
     required this.session,
     required this.viewModel,
     required this.onQuickOperation,
+    this.onViewAccountTransactions,
   });
 
   final UserSession session;
   final DashboardViewModel viewModel;
   final void Function(OperationKind kind, BankAccount? account)
       onQuickOperation;
+  final void Function(BankAccount account)? onViewAccountTransactions;
 
   @override
   Widget build(BuildContext context) {
@@ -266,6 +268,9 @@ class DashboardView extends StatelessWidget {
                     onTransferFrom: account.isActive
                         ? () => onQuickOperation(OperationKind.transfer, account)
                         : null,
+                    onViewTransactions: onViewAccountTransactions != null
+                        ? () => onViewAccountTransactions!(account)
+                        : null,
                   ),
                 ),
             ],
@@ -369,11 +374,13 @@ class _AccountCard extends StatelessWidget {
     required this.account,
     required this.onCopy,
     this.onTransferFrom,
+    this.onViewTransactions,
   });
 
   final BankAccount account;
   final VoidCallback onCopy;
   final VoidCallback? onTransferFrom;
+  final VoidCallback? onViewTransactions;
 
   @override
   Widget build(BuildContext context) {
@@ -477,6 +484,12 @@ class _AccountCard extends StatelessWidget {
                     onPressed: onTransferFrom,
                     icon: const Icon(Icons.send_rounded, size: 16),
                     label: const Text('Transferir'),
+                  ),
+                if (onViewTransactions != null)
+                  TextButton.icon(
+                    onPressed: onViewTransactions,
+                    icon: const Icon(Icons.receipt_long_rounded, size: 16),
+                    label: const Text('Movimientos'),
                   ),
               ],
             ),

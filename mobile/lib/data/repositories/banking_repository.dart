@@ -131,6 +131,7 @@ class BankingRepository {
     int page = 1,
     int limit = 15,
     String? type,
+    String? accountId,
     DateTime? fromDate,
     DateTime? toDate,
   }) async {
@@ -138,6 +139,7 @@ class BankingRepository {
       'page': '$page',
       'limit': '$limit',
       if (type != null && type.isNotEmpty) 'type': type,
+      if (accountId != null && accountId.isNotEmpty) 'account_id': accountId,
       if (fromDate != null) 'from_date': fromDate.toUtc().toIso8601String(),
       if (toDate != null) 'to_date': toDate.toUtc().toIso8601String(),
     };
@@ -196,6 +198,38 @@ class BankingRepository {
     final raw = (data['users'] as List?) ?? const [];
     return raw
         .map((e) => UserProfile.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<UserProfile> createUser({
+    required String email,
+    required String fullName,
+    required String password,
+    required String role,
+  }) async {
+    final res = await _apiClient.post(
+      '/api/v1/auth/register',
+      token: _requireToken(),
+      body: {
+        'email': email.trim().toLowerCase(),
+        'full_name': fullName.trim(),
+        'password': password,
+        'role': role,
+      },
+    );
+    final data = (res.body['data'] as Map).cast<String, dynamic>();
+    return UserProfile.fromJson(data);
+  }
+
+  Future<List<DispatchedWebhookItem>> fetchRecentWebhooks() async {
+    final res = await _apiClient.get(
+      '/api/v1/tenants/current/webhooks',
+      token: _requireToken(),
+    );
+    final data = (res.body['data'] as Map).cast<String, dynamic>();
+    final list = (data['events'] as List?) ?? const [];
+    return list
+        .map((e) => DispatchedWebhookItem.fromJson((e as Map).cast<String, dynamic>()))
         .toList();
   }
 

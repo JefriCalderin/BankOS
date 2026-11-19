@@ -171,6 +171,15 @@ paths:
         '403':
           description: Requiere rol administrador
 
+  /tenants/current/webhooks:
+    get:
+      summary: Consultar eventos webhooks recientes disparados por el tenant
+      responses:
+        '200':
+          description: Lista de eventos webhooks despachados
+        '401':
+          description: Requiere autenticación Bearer
+
   /auth/login:
     post:
       summary: Iniciar sesión dentro de un tenant específico (Rate Limited)

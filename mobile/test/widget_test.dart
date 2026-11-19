@@ -334,4 +334,166 @@ void main() {
     // 9. Celebratory Idempotency Verified badge is displayed!
     expect(find.byKey(const Key('idempotency_replayed_badge')), findsOneWidget);
   });
+
+  testWidgets(
+      'History Detail Sheet, Webhook Monitor, Demo Guide & Tenant Registration flows',
+      (tester) async {
+    final mockHttp = MockClient((request) async {
+      final path = request.url.path;
+
+      if (path == '/api/v1/auth/login') {
+        return http.Response(jsonEncode(mockLoginResponse()), 200);
+      }
+      if (path == '/api/v1/accounts') {
+        return http.Response(jsonEncode(mockAccountsResponse()), 200);
+      }
+      if (path == '/api/v1/transactions') {
+        return http.Response(
+          jsonEncode(
+            mockTransactionsResponse(request.url.queryParameters['type']),
+          ),
+          200,
+        );
+      }
+      if (path == '/api/v1/tenants/current/webhooks') {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'code': 'WEBHOOKS_LISTED',
+            'message': 'OK',
+            'data': {
+              'events': [
+                {
+                  'id': 'wh-1',
+                  'tenant_id': 'tenant-andes-1',
+                  'event_type': 'transfer.completed',
+                  'url': 'http://webhook-sink:8085/webhook',
+                  'http_status': 200,
+                  'signature': 'sha256=abcdef0123456789',
+                  'payload': {
+                    'transaction_id': 'tx-fx-1',
+                    'original_amount': 100.0,
+                    'original_currency': 'USD',
+                  },
+                  'created_at': '2026-11-18T12:05:00Z',
+                },
+              ],
+            },
+            'meta': {
+              'correlation_id': 'corr-wh-list',
+              'timestamp': DateTime.now().toUtc().toIso8601String(),
+            },
+          }),
+          200,
+        );
+      }
+      if (path == '/api/v1/tenants' && request.method == 'POST') {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'code': 'TENANT_REGISTERED',
+            'message': 'Institución registrada con éxito',
+            'data': {
+              'access_token': 'mock-new-tenant-token',
+              'admin_user': {
+                'id': 'user-admin-99',
+                'tenant_id': 'tenant-ne-99',
+                'email': 'admin@nuevaera.bank',
+                'full_name': 'Directora Laura Pardo',
+                'role': 'admin',
+              },
+              'tenant': {
+                'id': 'tenant-ne-99',
+                'slug': 'fintech-nueva-era',
+                'name': 'Fintech Nueva Era',
+                'config': {
+                  'max_transaction_limit': 20000000,
+                  'transfer_fee_type': 'percentage',
+                  'transfer_fee_value': 1.25,
+                  'base_currency': 'COP',
+                  'exchange_rates': {},
+                },
+              },
+            },
+          }),
+          201,
+        );
+      }
+
+      return http.Response('{"success":false,"message":"Not found"}', 404);
+    });
+
+    final apiClient = BankOsApiClient(
+      baseUrl: 'http://localhost:8080',
+      httpClient: mockHttp,
+    );
+    final storage = InMemoryKeyValueStorage();
+
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      BankOsMobileApp(apiClient: apiClient, storage: storage),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Verify Tenant Registration Dialog from Login
+    final registerTenantBtn = find.byKey(const Key('register_tenant_button'));
+    await tester.ensureVisible(registerTenantBtn);
+    await tester.tap(registerTenantBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alta de Nueva Institución'), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -600));
+    await tester.pumpAndSettle();
+    final submitTenantBtn = find.byKey(const Key('submit_tenant_button'));
+    await tester.tap(submitTenantBtn);
+    await tester.pumpAndSettle();
+
+    // 2. Direct entrance to HomeShell with new Tenant!
+    expect(find.text('BankOS · Fintech Nueva Era'), findsOneWidget);
+
+    // 3. Open Demo Guide Dialog from AppBar
+    final demoGuideBtn = find.byTooltip('Guía Demo Hackatón');
+    expect(demoGuideBtn, findsOneWidget);
+    await tester.tap(demoGuideBtn);
+    await tester.pumpAndSettle();
+    expect(find.text('Guía de Demostración Hackatón'), findsOneWidget);
+    expect(find.text('Aislamiento Estricto Multitenant'), findsOneWidget);
+    await tester.tap(find.text('Entendido'));
+    await tester.pumpAndSettle();
+
+    // 4. Open Webhook Monitor Sheet from AppBar
+    final webhookBtn = find.byTooltip('Monitor Webhooks');
+    expect(webhookBtn, findsOneWidget);
+    await tester.tap(webhookBtn);
+    await tester.pumpAndSettle();
+    expect(find.text('Visor de Webhooks en Vivo'), findsOneWidget);
+    expect(find.text('transfer.completed'), findsOneWidget);
+    expect(find.textContaining('tx-fx-1'), findsOneWidget);
+    await tester.tap(find.byTooltip('Cerrar'));
+    await tester.pumpAndSettle();
+
+    // 5. Navigate to History & tap transaction card to inspect TransactionDetailSheet
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+
+    final txCard = find.byKey(const Key('tx_card_tx-fx-1'));
+    expect(txCard, findsOneWidget);
+    await tester.tap(txCard);
+    await tester.pumpAndSettle();
+
+    // Modal sheet open with detailed breakdown & technical audit
+    expect(find.text('Transferencia Interna'), findsOneWidget);
+    expect(find.text('Trazabilidad e Idempotencia (Auditoría)'), findsOneWidget);
+    expect(find.text('11111111-2222-4333-8444-555555555555'), findsOneWidget);
+    expect(find.text('corr-tx-1'), findsOneWidget);
+
+    // Close detail sheet
+    await tester.tap(find.text('Cerrar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Trazabilidad e Idempotencia (Auditoría)'), findsNothing);
+  });
 }

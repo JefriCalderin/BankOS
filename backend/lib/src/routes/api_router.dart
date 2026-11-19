@@ -11,6 +11,7 @@ import '../security/jwt_service.dart';
 import '../services/banking_service.dart';
 import '../services/idempotency_service.dart';
 import '../services/rate_limiter_service.dart';
+import '../services/webhook_service.dart';
 
 class ApiV1Router {
   ApiV1Router({
@@ -21,13 +22,15 @@ class ApiV1Router {
     required BankingService bankingService,
     required IdempotencyService idempotencyService,
     required RateLimiterService rateLimiter,
+    required WebhookService webhookService,
   })  : _config = config,
         _store = store,
         _cache = cache,
         _jwtService = jwtService,
         _bankingService = bankingService,
         _idempotencyService = idempotencyService,
-        _rateLimiter = rateLimiter;
+        _rateLimiter = rateLimiter,
+        _webhookService = webhookService;
 
   final EnvConfig _config;
   final BankStore _store;
@@ -36,6 +39,7 @@ class ApiV1Router {
   final BankingService _bankingService;
   final IdempotencyService _idempotencyService;
   final RateLimiterService _rateLimiter;
+  final WebhookService _webhookService;
 
   Router get router {
     final r = Router();
@@ -47,6 +51,7 @@ class ApiV1Router {
     r.post('/api/v1/tenants', _registerTenant);
     r.get('/api/v1/tenants/current', _getCurrentTenant);
     r.patch('/api/v1/tenants/current/config', _updateTenantConfig);
+    r.get('/api/v1/tenants/current/webhooks', _getTenantWebhooks);
 
     // Auth & Users
     r.post('/api/v1/auth/login', _login);
@@ -220,6 +225,17 @@ class ApiV1Router {
       message: 'Configuración del tenant actualizada y auditada',
       correlationId: correlationId,
       data: updated.toJson(),
+    );
+  }
+
+  Future<Response> _getTenantWebhooks(Request request) async {
+    final auth = authenticateRequest(request, _jwtService);
+    final events = _webhookService.getRecentEvents(auth.tenantId);
+    return ApiResponse.ok(
+      code: 'WEBHOOKS_LISTED',
+      message: 'Eventos webhook recientes del tenant obtenidos',
+      correlationId: getCorrelationId(request),
+      data: {'events': events},
     );
   }
 

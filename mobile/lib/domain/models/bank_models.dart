@@ -466,3 +466,29 @@ class AuditLogItem {
     );
   }
 }
+
+class DispatchedWebhookItem {
+  const DispatchedWebhookItem({
+    required this.url,
+    required this.event,
+    required this.tenantId,
+    required this.correlationId,
+    required this.payload,
+  });
+
+  final String url;
+  final String event;
+  final String tenantId;
+  final String correlationId;
+  final Map<String, dynamic> payload;
+
+  factory DispatchedWebhookItem.fromJson(Map<String, dynamic> json) {
+    return DispatchedWebhookItem(
+      url: json['url'] as String? ?? '',
+      event: ((json['event'] ?? json['event_type']) as String?) ?? 'unknown',
+      tenantId: json['tenant_id'] as String? ?? '',
+      correlationId: json['correlation_id'] as String? ?? '',
+      payload: (json['payload'] as Map?)?.cast<String, dynamic>() ?? {},
+    );
+  }
+}

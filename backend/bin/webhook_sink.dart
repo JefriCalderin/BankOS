@@ -11,7 +11,16 @@ Future<void> main() async {
   final port = int.tryParse(Platform.environment['WEBHOOK_SINK_PORT'] ?? '') ?? 8085;
   final events = <Map<String, Object?>>[];
 
+  const corsHeaders = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+
   final router = Router()
+    ..options('/<ignored|.*>', (Request request) {
+      return Response.ok('', headers: corsHeaders);
+    })
     ..post('/webhook', (Request request) async {
       final rawBody = await request.readAsString();
       Object? parsedBody;
@@ -35,13 +44,13 @@ Future<void> main() async {
       print('[WebhookSink] Received ${entry['event']} (${entry['correlation_id']})');
       return Response.ok(
         jsonEncode({'received': true, 'total_stored': events.length}),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json', ...corsHeaders},
       );
     })
     ..get('/events', (Request request) {
       return Response.ok(
         jsonEncode({'count': events.length, 'events': events}),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json', ...corsHeaders},
       );
     });
 

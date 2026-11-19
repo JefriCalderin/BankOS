@@ -33,6 +33,12 @@ class _AdminViewState extends State<AdminView> {
   String _newAccountCurrency = 'USD';
   final _initialBalanceController = TextEditingController(text: '1000');
 
+  // New User Form controllers
+  final _newUserEmailController = TextEditingController();
+  final _newUserNameController = TextEditingController();
+  final _newUserPasswordController = TextEditingController(text: 'Cliente123!');
+  String _newUserRole = 'cliente';
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +57,9 @@ class _AdminViewState extends State<AdminView> {
     _feeValueController.dispose();
     _webhookController.dispose();
     _initialBalanceController.dispose();
+    _newUserEmailController.dispose();
+    _newUserNameController.dispose();
+    _newUserPasswordController.dispose();
     super.dispose();
   }
 
@@ -80,6 +89,31 @@ class _AdminViewState extends State<AdminView> {
       initialBalance: bal,
     );
     if (ok) widget.onDataMutated();
+  }
+
+  Future<void> _createUser() async {
+    final email = _newUserEmailController.text.trim();
+    final name = _newUserNameController.text.trim();
+    final password = _newUserPasswordController.text;
+
+    if (email.isEmpty || name.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Complete todos los campos del usuario')),
+      );
+      return;
+    }
+
+    final ok = await widget.viewModel.createUser(
+      email: email,
+      fullName: name,
+      password: password,
+      role: _newUserRole,
+    );
+    if (ok) {
+      _newUserEmailController.clear();
+      _newUserNameController.clear();
+      widget.onDataMutated();
+    }
   }
 
   @override
@@ -220,6 +254,90 @@ class _AdminViewState extends State<AdminView> {
                             widget.viewModel.isLoading ? null : _saveConfig,
                         icon: const Icon(Icons.save_rounded),
                         label: const Text('Guardar Configuración'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Create User Card
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Registrar Nuevo Usuario / Cliente',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: BankOsColors.navy,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _newUserNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nombre completo',
+                          hintText: 'ej. Andrea Salazar',
+                          prefixIcon: Icon(Icons.person_outline),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _newUserEmailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Correo electrónico',
+                          hintText: 'ej. andrea@andes.bank',
+                          prefixIcon: Icon(Icons.email_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _newUserPasswordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Contraseña',
+                                prefixIcon: Icon(Icons.lock_outline),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _newUserRole,
+                              decoration: const InputDecoration(
+                                labelText: 'Rol',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'cliente',
+                                  child: Text('Cliente'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'administrador',
+                                  child: Text('Administrador'),
+                                ),
+                              ],
+                              onChanged: (v) {
+                                if (v != null) setState(() => _newUserRole = v);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        onPressed:
+                            widget.viewModel.isLoading ? null : _createUser,
+                        icon: const Icon(Icons.person_add_rounded),
+                        label: const Text('Registrar Usuario'),
                       ),
                     ],
                   ),

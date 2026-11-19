@@ -73,6 +73,50 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> registerTenant({
+    required String name,
+    required String slug,
+    required String baseCurrency,
+    required double maxTransactionLimit,
+    required String transferFeeType,
+    required double transferFeeValue,
+    required Map<String, double> exchangeRates,
+    required String adminEmail,
+    required String adminFullName,
+    required String adminPassword,
+    String? webhookUrl,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _session = await _authRepository.registerTenant(
+        name: name,
+        slug: slug,
+        baseCurrency: baseCurrency,
+        maxTransactionLimit: maxTransactionLimit,
+        transferFeeType: transferFeeType,
+        transferFeeValue: transferFeeValue,
+        exchangeRates: exchangeRates,
+        adminEmail: adminEmail,
+        adminFullName: adminFullName,
+        adminPassword: adminPassword,
+        webhookUrl: webhookUrl,
+      );
+      return true;
+    } on ApiError catch (e) {
+      _errorMessage = e.message;
+      return false;
+    } catch (e) {
+      _errorMessage = 'No se pudo registrar la institución: $e';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   void refreshCachedSession() {
     _session = _authRepository.currentSession;
     notifyListeners();

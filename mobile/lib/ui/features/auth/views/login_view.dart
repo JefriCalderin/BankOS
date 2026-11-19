@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme.dart';
 import '../view_models/auth_view_model.dart';
+import 'tenant_registration_dialog.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key, required this.viewModel});
@@ -388,8 +389,21 @@ class _LoginViewState extends State<LoginView> {
                                       ],
                                     ),
                                   ),
-
                                   const SizedBox(height: 12),
+
+                                  OutlinedButton.icon(
+                                    key: const Key('register_tenant_button'),
+                                    onPressed: widget.viewModel.isLoading
+                                        ? null
+                                        : () => TenantRegistrationDialog.show(
+                                              context,
+                                              widget.viewModel,
+                                            ),
+                                    icon: const Icon(Icons.add_business_rounded, size: 18),
+                                    label: const Text('Registrar Nueva Institución'),
+                                  ),
+
+                                  const SizedBox(height: 10),
 
                                   TextButton.icon(
                                     onPressed: () => setState(

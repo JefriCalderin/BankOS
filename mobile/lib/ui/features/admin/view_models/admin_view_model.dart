@@ -105,6 +105,37 @@ class AdminViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> createUser({
+    required String email,
+    required String fullName,
+    required String password,
+    required String role,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    _statusMessage = null;
+    notifyListeners();
+
+    try {
+      final user = await _bankingRepository.createUser(
+        email: email,
+        fullName: fullName,
+        password: password,
+        role: role,
+      );
+      _statusMessage =
+          'Usuario ${user.fullName} (${user.email}) creado exitosamente como ${user.role}';
+      await loadAdminData();
+      return true;
+    } on ApiError catch (e) {
+      _errorMessage = e.message;
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> toggleAccountSoftDelete(BankAccount account) async {
     _isLoading = true;
     _errorMessage = null;

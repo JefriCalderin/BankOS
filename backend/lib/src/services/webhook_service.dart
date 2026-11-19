@@ -29,6 +29,20 @@ class WebhookService {
   final String signingSecret;
   final http.Client _httpClient;
   final void Function(WebhookEventRecord record)? onDispatched;
+  final List<WebhookEventRecord> _recentEvents = [];
+
+  List<Map<String, Object?>> getRecentEvents(String tenantId) {
+    return _recentEvents
+        .where((e) => e.tenantId == tenantId)
+        .map((e) => {
+              'url': e.url,
+              'event': e.eventType,
+              'tenant_id': e.tenantId,
+              'correlation_id': e.correlationId,
+              'payload': e.payload,
+            })
+        .toList();
+  }
 
   /// Dispatches an asynchronous non-blocking HTTP POST webhook notification.
   void dispatchAsync({
@@ -50,15 +64,20 @@ class WebhookService {
       'data': data,
     };
 
-    onDispatched?.call(
-      WebhookEventRecord(
-        url: webhookUrl,
-        eventType: eventType,
-        tenantId: tenantId,
-        correlationId: correlationId,
-        payload: payload,
-      ),
+    final record = WebhookEventRecord(
+      url: webhookUrl,
+      eventType: eventType,
+      tenantId: tenantId,
+      correlationId: correlationId,
+      payload: payload,
     );
+
+    _recentEvents.insert(0, record);
+    if (_recentEvents.length > 60) {
+      _recentEvents.removeLast();
+    }
+
+    onDispatched?.call(record);
 
     unawaited(_send(webhookUrl, eventType, correlationId, payload));
   }
