@@ -336,7 +336,9 @@ class _ExchangeRatesSheetState extends State<ExchangeRatesSheet> {
                               children: [
                                 Expanded(
                                   child: DropdownButtonFormField<String>(
-                                    value: _fromCurrency,
+                                    key: ValueKey('from_$_fromCurrency'),
+                                    isExpanded: true,
+                                    initialValue: _fromCurrency,
                                     decoration: const InputDecoration(
                                       labelText: 'De',
                                       isDense: true,
@@ -365,7 +367,9 @@ class _ExchangeRatesSheetState extends State<ExchangeRatesSheet> {
                                 ),
                                 Expanded(
                                   child: DropdownButtonFormField<String>(
-                                    value: _toCurrency,
+                                    key: ValueKey('to_$_toCurrency'),
+                                    isExpanded: true,
+                                    initialValue: _toCurrency,
                                     decoration: const InputDecoration(
                                       labelText: 'A',
                                       isDense: true,
