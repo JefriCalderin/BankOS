@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../data/repositories/auth_repository.dart';
 import '../../../../domain/models/bank_models.dart';
@@ -582,13 +583,80 @@ class _ReceiptSuccessCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            FilledButton(
-              onPressed: onDone,
-              child: const Text('Volver al Inicio'),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('share_receipt_button'),
+                    icon: const Icon(Icons.share_rounded, size: 18),
+                    label: const Text('Compartir'),
+                    onPressed: () {
+                      final text = _generateReceiptText(receipt, draft);
+                      Clipboard.setData(ClipboardData(text: text));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Comprobante copiado al portapapeles con Idempotency-Key y Correlation-ID',
+                          ),
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onDone,
+                    child: const Text('Volver al Inicio'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _generateReceiptText(ExecutionReceipt receipt, OperationDraft draft) {
+    final tx = receipt.transaction;
+    final buffer = StringBuffer();
+    buffer.writeln('===========================================');
+    buffer.writeln('       BANKOS - COMPROBANTE OFICIAL        ');
+    buffer.writeln('===========================================');
+    buffer.writeln('Estado: EXITOSO');
+    buffer.writeln('Tipo: ${tx.type.toUpperCase()}');
+    buffer.writeln(
+      'Monto Original: ${BankFormatters.money(tx.originalAmount, tx.originalCurrency)}',
+    );
+    if (tx.feeAmount > 0) {
+      buffer.writeln(
+        'Comisión: ${BankFormatters.money(tx.feeAmount, tx.feeCurrency)}',
+      );
+    }
+    if (tx.hasCurrencyConversion) {
+      buffer.writeln(
+        'Tasa FX: 1 ${tx.originalCurrency} = ${BankFormatters.rate(tx.exchangeRate)} ${tx.destinationCurrency}',
+      );
+    }
+    buffer.writeln(
+      'Monto Final: ${BankFormatters.money(tx.convertedAmount, tx.destinationCurrency)}',
+    );
+    buffer.writeln('Cuenta Origen: ${tx.sourceAccountNumber}');
+    if (tx.destinationAccountNumber != null) {
+      buffer.writeln('Cuenta Destino: ${tx.destinationAccountNumber}');
+    }
+    if (draft.destinationOwnerName != null) {
+      buffer.writeln('Beneficiario: ${draft.destinationOwnerName}');
+    }
+    buffer.writeln('-------------------------------------------');
+    buffer.writeln('ID Transacción: ${tx.id}');
+    buffer.writeln('Idempotency-Key: ${tx.idempotencyKey}');
+    buffer.writeln('X-Correlation-ID: ${receipt.correlationId}');
+    buffer.writeln('Replay Idempotente: ${receipt.wasReplayed ? "SÍ" : "NO"}');
+    buffer.writeln('Fecha/Hora: ${DateTime.now().toIso8601String()}');
+    buffer.writeln('===========================================');
+    return buffer.toString();
   }
 }

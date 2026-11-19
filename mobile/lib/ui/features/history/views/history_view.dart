@@ -7,10 +7,24 @@ import '../../../core/theme.dart';
 import '../view_models/history_view_model.dart';
 import 'transaction_detail_sheet.dart';
 
-class HistoryView extends StatelessWidget {
+class HistoryView extends StatefulWidget {
   const HistoryView({super.key, required this.viewModel});
 
   final HistoryViewModel viewModel;
+
+  @override
+  State<HistoryView> createState() => _HistoryViewState();
+}
+
+class _HistoryViewState extends State<HistoryView> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickDateRange(BuildContext context) async {
     final now = DateTime.now();
@@ -18,7 +32,7 @@ class HistoryView extends StatelessWidget {
       context: context,
       firstDate: DateTime(now.year - 1),
       lastDate: DateTime(now.year + 1),
-      initialDateRange: viewModel.dateRange,
+      initialDateRange: widget.viewModel.dateRange,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -34,21 +48,38 @@ class HistoryView extends StatelessWidget {
       },
     );
     if (picked != null) {
-      await viewModel.setDateRange(picked);
+      await widget.viewModel.setDateRange(picked);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: viewModel,
+      listenable: widget.viewModel,
       builder: (context, _) {
-        final selected = viewModel.selectedType;
-        final dateRange = viewModel.dateRange;
-        final accountFilterLabel = viewModel.accountNumberFilterLabel;
+        final selected = widget.viewModel.selectedType;
+        final dateRange = widget.viewModel.dateRange;
+        final accountFilterLabel = widget.viewModel.accountNumberFilterLabel;
+
+        final displayedItems = _searchQuery.isEmpty
+            ? widget.viewModel.items
+            : widget.viewModel.items.where((t) {
+                final desc = t.description?.toLowerCase() ?? '';
+                final src = t.sourceAccountNumber?.toLowerCase() ?? '';
+                final dst = t.destinationAccountNumber?.toLowerCase() ?? '';
+                final id = t.id.toLowerCase();
+                final type = t.type.toLowerCase();
+                final idemp = t.idempotencyKey.toLowerCase();
+                return desc.contains(_searchQuery) ||
+                    src.contains(_searchQuery) ||
+                    dst.contains(_searchQuery) ||
+                    id.contains(_searchQuery) ||
+                    type.contains(_searchQuery) ||
+                    idemp.contains(_searchQuery);
+              }).toList();
 
         return RefreshIndicator(
-          onRefresh: viewModel.loadFirstPage,
+          onRefresh: widget.viewModel.loadFirstPage,
           child: Column(
             children: [
               // Filter Chips Header
@@ -73,9 +104,9 @@ class HistoryView extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        if (viewModel.pagination != null)
+                        if (widget.viewModel.pagination != null)
                           Text(
-                            '${viewModel.items.length} / ${viewModel.pagination!.total}',
+                            '${displayedItems.length} / ${widget.viewModel.pagination!.total}',
                             style: const TextStyle(
                               fontSize: 12.5,
                               color: BankOsColors.muted,
@@ -85,6 +116,56 @@ class HistoryView extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 10),
+
+                    // Search input
+                    SizedBox(
+                      height: 44,
+                      child: TextField(
+                        key: const Key('history_search_field'),
+                        controller: _searchController,
+                        onChanged: (val) {
+                          setState(() {
+                            _searchQuery = val.trim().toLowerCase();
+                          });
+                        },
+                        style: const TextStyle(fontSize: 13.5),
+                        decoration: InputDecoration(
+                          hintText: 'Buscar por concepto, cuenta o ID...',
+                          hintStyle: const TextStyle(
+                            fontSize: 13,
+                            color: BankOsColors.muted,
+                          ),
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear_rounded, size: 18),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                )
+                              : null,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          filled: true,
+                          fillColor: BankOsColors.slateSoft,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: BankOsColors.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: BankOsColors.border),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -93,28 +174,29 @@ class HistoryView extends StatelessWidget {
                             key: const Key('filter_all'),
                             label: 'Todas',
                             selected: selected == null,
-                            onTap: () => viewModel.setTypeFilter(null),
+                            onTap: () => widget.viewModel.setTypeFilter(null),
                           ),
                           const SizedBox(width: 8),
                           _FilterPill(
                             key: const Key('filter_deposit'),
                             label: 'Depósitos',
                             selected: selected == 'deposit',
-                            onTap: () => viewModel.setTypeFilter('deposit'),
+                            onTap: () => widget.viewModel.setTypeFilter('deposit'),
                           ),
                           const SizedBox(width: 8),
                           _FilterPill(
                             key: const Key('filter_withdrawal'),
                             label: 'Retiros',
                             selected: selected == 'withdrawal',
-                            onTap: () => viewModel.setTypeFilter('withdrawal'),
+                            onTap: () =>
+                                widget.viewModel.setTypeFilter('withdrawal'),
                           ),
                           const SizedBox(width: 8),
                           _FilterPill(
                             key: const Key('filter_transfer'),
                             label: 'Transferencias',
                             selected: selected == 'transfer',
-                            onTap: () => viewModel.setTypeFilter('transfer'),
+                            onTap: () => widget.viewModel.setTypeFilter('transfer'),
                           ),
                           const SizedBox(width: 8),
                           ActionChip(
@@ -137,7 +219,7 @@ class HistoryView extends StatelessWidget {
                             const SizedBox(width: 4),
                             IconButton(
                               icon: const Icon(Icons.close_rounded, size: 18),
-                              onPressed: () => viewModel.setDateRange(null),
+                              onPressed: () => widget.viewModel.setDateRange(null),
                               tooltip: 'Quitar filtro de fechas',
                               visualDensity: VisualDensity.compact,
                             ),
@@ -177,7 +259,8 @@ class HistoryView extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 4),
                                 InkWell(
-                                  onTap: () => viewModel.setAccountFilter(null),
+                                  onTap: () =>
+                                      widget.viewModel.setAccountFilter(null),
                                   child: const Icon(
                                     Icons.close,
                                     size: 14,
@@ -189,7 +272,7 @@ class HistoryView extends StatelessWidget {
                           ),
                           const Spacer(),
                           TextButton(
-                            onPressed: viewModel.clearAllFilters,
+                            onPressed: widget.viewModel.clearAllFilters,
                             style: TextButton.styleFrom(
                               visualDensity: VisualDensity.compact,
                             ),
@@ -205,9 +288,11 @@ class HistoryView extends StatelessWidget {
 
               // List Body
               Expanded(
-                child: viewModel.isLoading && viewModel.items.isEmpty
+                child: widget.viewModel.isLoading &&
+                        widget.viewModel.items.isEmpty
                     ? const Center(child: CircularProgressIndicator())
-                    : viewModel.errorMessage != null && viewModel.items.isEmpty
+                    : widget.viewModel.errorMessage != null &&
+                            widget.viewModel.items.isEmpty
                         ? Center(
                             child: Padding(
                               padding: const EdgeInsets.all(24),
@@ -215,7 +300,7 @@ class HistoryView extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    viewModel.errorMessage!,
+                                    widget.viewModel.errorMessage!,
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(
                                       color: BankOsColors.crimson,
@@ -223,48 +308,67 @@ class HistoryView extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 12),
                                   OutlinedButton(
-                                    onPressed: viewModel.loadFirstPage,
+                                    onPressed: widget.viewModel.loadFirstPage,
                                     child: const Text('Reintentar'),
                                   ),
                                 ],
                               ),
                             ),
                           )
-                        : viewModel.items.isEmpty
+                        : displayedItems.isEmpty
                             ? ListView(
-                                children: const [
-                                  SizedBox(height: 80),
+                                children: [
+                                  const SizedBox(height: 80),
                                   Icon(
-                                    Icons.receipt_long_outlined,
+                                    _searchQuery.isNotEmpty
+                                        ? Icons.search_off_rounded
+                                        : Icons.receipt_long_outlined,
                                     size: 48,
                                     color: BankOsColors.muted,
                                   ),
-                                  SizedBox(height: 12),
+                                  const SizedBox(height: 12),
                                   Center(
                                     child: Text(
-                                      'No hay transacciones para este filtro.',
-                                      style: TextStyle(
+                                      _searchQuery.isNotEmpty
+                                          ? 'No se encontraron transacciones para "$_searchQuery"'
+                                          : 'No hay transacciones para este filtro.',
+                                      style: const TextStyle(
                                         color: BankOsColors.muted,
                                       ),
                                     ),
                                   ),
+                                  if (_searchQuery.isNotEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    Center(
+                                      child: TextButton(
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          setState(() => _searchQuery = '');
+                                        },
+                                        child: const Text('Limpiar búsqueda'),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               )
                             : ListView.builder(
                                 padding: const EdgeInsets.all(16),
-                                itemCount: viewModel.items.length +
-                                    (viewModel.hasMore ? 1 : 0),
+                                itemCount: displayedItems.length +
+                                    (widget.viewModel.hasMore &&
+                                            _searchQuery.isEmpty
+                                        ? 1
+                                        : 0),
                                 itemBuilder: (context, index) {
-                                  if (index == viewModel.items.length) {
+                                  if (index == displayedItems.length) {
                                     return Padding(
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 12,
                                       ),
                                       child: OutlinedButton(
-                                        onPressed: viewModel.isLoadingMore
+                                        onPressed: widget.viewModel.isLoadingMore
                                             ? null
-                                            : viewModel.loadNextPage,
-                                        child: viewModel.isLoadingMore
+                                            : widget.viewModel.loadNextPage,
+                                        child: widget.viewModel.isLoadingMore
                                             ? const SizedBox(
                                                 width: 18,
                                                 height: 18,
@@ -278,8 +382,10 @@ class HistoryView extends StatelessWidget {
                                     );
                                   }
                                   return _TransactionCard(
-                                    key: Key('tx_card_${viewModel.items[index].id}'),
-                                    tx: viewModel.items[index],
+                                    key: Key(
+                                      'tx_card_${displayedItems[index].id}',
+                                    ),
+                                    tx: displayedItems[index],
                                   );
                                 },
                               ),

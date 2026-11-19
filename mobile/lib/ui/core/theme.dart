@@ -10,6 +10,7 @@ class BankOsColors {
   // Surface & Neutral tones
   static const Color navy = Color(0xFF0F172A);
   static const Color slate = Color(0xFF334155);
+  static const Color slateSoft = Color(0xFFF1F5F9);
   static const Color muted = Color(0xFF64748B);
   static const Color surface = Color(0xFFF8FAFD);
   static const Color card = Colors.white;

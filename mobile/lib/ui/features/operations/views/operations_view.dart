@@ -83,6 +83,13 @@ class _OperationsViewState extends State<OperationsView> {
     return null;
   }
 
+  void _selectFrequentContact(String accountNumber) {
+    setState(() {
+      _destAccountController.text = accountNumber;
+    });
+    widget.viewModel.lookupDestination(accountNumber);
+  }
+
   Future<void> _goToSummary() async {
     final source = _selectedAccount;
     if (source == null) return;
@@ -222,6 +229,94 @@ class _OperationsViewState extends State<OperationsView> {
 
                       // Destination lookup for transfers
                       if (kind == OperationKind.transfer) ...[
+                        const Text(
+                          'Destinatarios Frecuentes',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: BankOsColors.muted,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: _kFrequentContacts.map((contact) {
+                              final isSelected =
+                                  _destAccountController.text.trim() ==
+                                      contact.accountNumber;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () => _selectFrequentContact(
+                                    contact.accountNumber,
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 7,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? contact.color.withValues(alpha: 0.12)
+                                          : BankOsColors.slateSoft,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? contact.color
+                                            : BankOsColors.border,
+                                        width: isSelected ? 1.5 : 1.0,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: contact.color,
+                                          child: Text(
+                                            contact.initials,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              contact.name,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: BankOsColors.navy,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${contact.bank} · ${contact.accountNumber}',
+                                              style: const TextStyle(
+                                                fontSize: 10,
+                                                color: BankOsColors.muted,
+                                                fontFamily: 'monospace',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -384,3 +479,43 @@ class _OperationsViewState extends State<OperationsView> {
     );
   }
 }
+
+class _FrequentContact {
+  const _FrequentContact({
+    required this.name,
+    required this.accountNumber,
+    required this.bank,
+    required this.initials,
+    required this.color,
+  });
+
+  final String name;
+  final String accountNumber;
+  final String bank;
+  final String initials;
+  final Color color;
+}
+
+const _kFrequentContacts = [
+  _FrequentContact(
+    name: 'Carlos Ruiz',
+    accountNumber: 'AND-COP-2001',
+    bank: 'Banco Andes',
+    initials: 'CR',
+    color: BankOsColors.primary,
+  ),
+  _FrequentContact(
+    name: 'Ana Gómez',
+    accountNumber: 'AND-USD-1001',
+    bank: 'Banco Andes',
+    initials: 'AG',
+    color: BankOsColors.emerald,
+  ),
+  _FrequentContact(
+    name: 'María López',
+    accountNumber: 'SOL-COP-2001',
+    bank: 'Coop Sol',
+    initials: 'ML',
+    color: BankOsColors.violet,
+  ),
+];

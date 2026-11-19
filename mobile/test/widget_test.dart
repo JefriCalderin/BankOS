@@ -333,6 +333,16 @@ void main() {
 
     // 9. Celebratory Idempotency Verified badge is displayed!
     expect(find.byKey(const Key('idempotency_replayed_badge')), findsOneWidget);
+
+    // 10. Verify "Compartir Comprobante" button copies to clipboard & shows snackbar
+    final shareBtn = find.byKey(const Key('share_receipt_button'));
+    expect(shareBtn, findsOneWidget);
+    await tester.tap(shareBtn);
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Comprobante copiado al portapapeles'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -495,5 +505,45 @@ void main() {
     await tester.tap(find.text('Cerrar'));
     await tester.pumpAndSettle();
     expect(find.text('Trazabilidad e Idempotencia (Auditoría)'), findsNothing);
+
+    // 6. Test History Search Filter
+    final searchField = find.byKey(const Key('history_search_field'));
+    expect(searchField, findsOneWidget);
+    await tester.enterText(searchField, 'nómina');
+    await tester.pumpAndSettle();
+    expect(find.text('Depósito nómina'), findsOneWidget);
+    expect(find.byKey(const Key('tx_card_tx-fx-1')), findsNothing);
+
+    // Clear search
+    await tester.enterText(searchField, '');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tx_card_tx-fx-1')), findsOneWidget);
+
+    // 7. Navigate to Dashboard & open Exchange Rates Sheet
+    await tester.tap(find.text('Cuentas'));
+    await tester.pumpAndSettle();
+
+    final fxBtn = find.byKey(const Key('quick_action_exchange_rates'));
+    expect(fxBtn, findsOneWidget);
+    await tester.tap(fxBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tasas FX y Conversor'), findsOneWidget);
+    expect(find.text('Calculadora de Conversión en Vivo'), findsOneWidget);
+    await tester.tap(find.byTooltip('Cerrar'));
+    await tester.pumpAndSettle();
+
+    // 8. Navigate to Operations & verify Frequent Contacts carousel auto-fills account
+    await tester.tap(find.text('Operar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Destinatarios Frecuentes'), findsOneWidget);
+    expect(find.text('Carlos Ruiz'), findsOneWidget);
+    await tester.tap(find.text('Carlos Ruiz'));
+    await tester.pumpAndSettle();
+
+    final destAccountFinder = find.byKey(const Key('dest_account_field'));
+    final textField = tester.widget<TextField>(destAccountFinder);
+    expect(textField.controller?.text, 'AND-COP-2001');
   });
 }

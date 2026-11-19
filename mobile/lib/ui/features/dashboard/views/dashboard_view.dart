@@ -5,6 +5,7 @@ import '../../../../domain/models/bank_models.dart';
 import '../../../core/formatters.dart';
 import '../../../core/theme.dart';
 import '../view_models/dashboard_view_model.dart';
+import 'exchange_rates_sheet.dart';
 
 class DashboardView extends StatelessWidget {
   const DashboardView({
@@ -124,7 +125,15 @@ class DashboardView extends StatelessWidget {
                       children: [
                         _TenantStatChip(
                           icon: Icons.currency_exchange_rounded,
-                          label: 'Base: ${tenant.config.baseCurrency}',
+                          label: 'Base: ${tenant.config.baseCurrency} · Ver FX',
+                          onTap: () => ExchangeRatesSheet.show(
+                            context,
+                            tenant: tenant,
+                            onOpenTransfer: () => onQuickOperation(
+                              OperationKind.transfer,
+                              viewModel.activeAccounts.firstOrNull,
+                            ),
+                          ),
                         ),
                         _TenantStatChip(
                           icon: Icons.percent_rounded,
@@ -156,7 +165,7 @@ class DashboardView extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _QuickActionButton(
                       icon: Icons.arrow_upward_rounded,
@@ -168,7 +177,7 @@ class DashboardView extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _QuickActionButton(
                       icon: Icons.swap_horiz_rounded,
@@ -177,6 +186,23 @@ class DashboardView extends StatelessWidget {
                       onTap: () => onQuickOperation(
                         OperationKind.transfer,
                         viewModel.activeAccounts.firstOrNull,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _QuickActionButton(
+                      key: const Key('quick_action_exchange_rates'),
+                      icon: Icons.currency_exchange_rounded,
+                      label: 'Tasas FX',
+                      color: BankOsColors.violet,
+                      onTap: () => ExchangeRatesSheet.show(
+                        context,
+                        tenant: tenant,
+                        onOpenTransfer: () => onQuickOperation(
+                          OperationKind.transfer,
+                          viewModel.activeAccounts.firstOrNull,
+                        ),
                       ),
                     ),
                   ),
@@ -282,14 +308,19 @@ class DashboardView extends StatelessWidget {
 }
 
 class _TenantStatChip extends StatelessWidget {
-  const _TenantStatChip({required this.icon, required this.label});
+  const _TenantStatChip({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
 
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
@@ -308,14 +339,31 @@ class _TenantStatChip extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 14,
+              color: Colors.white70,
+            ),
+          ],
         ],
       ),
+    );
+
+    if (onTap == null) return chip;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: chip,
     );
   }
 }
 
 class _QuickActionButton extends StatelessWidget {
   const _QuickActionButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.color,
